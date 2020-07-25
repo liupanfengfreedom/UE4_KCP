@@ -126,13 +126,13 @@ void Kcpclient::ReceiveWork()
 		{
 			//UMyBlueprintFunctionLibrary::CLogtofile(FString("exitthread"));
 			SenderSocket->Close();
-			delete this;
+			//delete this;
 			break;
 		}
 		if (SenderSocket == nullptr)
 		{
 			//UMyBlueprintFunctionLibrary::CLogtofile(FString("Socket == nullptr"));
-			delete this;
+			//delete this;
 			break;
 		}
 		//GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Yellow, TEXT("UTcpClient threadworker"));
