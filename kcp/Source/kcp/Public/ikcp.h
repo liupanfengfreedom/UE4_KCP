@@ -12,6 +12,10 @@
 #ifndef __IKCP_H__
 #define __IKCP_H__
 
+#ifndef _CRT_HAS_CXX17
+#define _CRT_HAS_CXX17
+#endif
+
 #include <stddef.h>
 #include <stdlib.h>
 #include <assert.h>

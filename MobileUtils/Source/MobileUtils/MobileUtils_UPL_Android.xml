@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 
+    Mobile Utils Plugin
+    Created by Patryk Stepniewski
+    Copyright (c) 2014-2019 gameDNA Ltd. All Rights Reserved.
+-->
+<root xmlns:android="http://schemas.android.com/apk/res/android">
+  <init>
+	<log text="MobileUtils init"/>
+  </init>
+
+  <proguardAdditions>
+	<insert>
+	</insert>
+  </proguardAdditions>
+
+  <resourceCopies>
+  </resourceCopies>
+	
+  <gameActivityImportAdditions>
+	<insert>
+		import android.net.wifi.WifiManager;
+		import android.text.format.Formatter;
+	</insert>
+  </gameActivityImportAdditions>
+
+  <androidManifestUpdates>
+	  <addPermission android:name="android.permission.READ_PHONE_STATE" />
+	  <addPermission android:name="android.permission.ACCESS_WIFI_STATE" />
+	  <addPermission android:name="android.permission.INTERNET" />
+  </androidManifestUpdates>
+
+  <gameActivityClassAdditions>
+	<insert>
+		public void AndroidThunkJava_SetOrientation(int orientation)
+		{
+		setRequestedOrientation(orientation);
+		}
+
+		private static Runnable back_to_main = null;
+		public static void setBackToMain(Runnable fn)
+		{
+		back_to_main = fn;
+		}
+		public void AndroidThunkJava_StartActivity(String activity)
+		{
+		if (back_to_main != null) {
+		runOnUiThread(back_to_main);
+		}
+		}
+		public String AndroidThunkJava_Getlocalipaddress()
+		{
+		WifiManager wm = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
+		String ip = Formatter.formatIpAddress(wm.getConnectionInfo().getIpAddress());
+		return ip;
+		}
+		public abstract class MessageRunnable implements Runnable
+		{
+		protected int message = 0;
+		protected JSONObject content = null;
+
+		public void setData(int msg, JSONObject json)
+		{
+		message = msg;
+		content = json;
+		}
+		}
+
+
+		private static MessageRunnable message_callback = null;
+		public static void setMessageCallback(MessageRunnable fn)
+		{
+		message_callback = fn;
+		}
+		public void AndroidThunkJava_DispatchMessage(int message, String json)
+		{
+		if (message_callback != null) {
+		if (json != null) {
+		try {
+		JSONObject obj = new JSONObject(json);
+		message_callback.setData(message, obj);
+		runOnUiThread(message_callback);
+		} catch (JSONException ex) {
+		ex.printStackTrace();
+		}
+		} else {
+		message_callback.setData(message, null);
+		runOnUiThread(message_callback);
+		}
+		}
+		}
+		public static native void nativeOnMessageCallback(int message, String json);
+		public static void DispatchMessage(int message, JSONObject json)
+		{
+		if (json != null)
+		nativeOnMessageCallback(message, json.toString());
+		else
+		nativeOnMessageCallback(message, null);
+		}
+	</insert>
+  </gameActivityClassAdditions>
+</root>

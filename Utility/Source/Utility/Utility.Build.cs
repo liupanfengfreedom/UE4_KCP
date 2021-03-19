@@ -1,15 +1,17 @@
-// Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
+
 
 using UnrealBuildTool;
 
-public class kcp : ModuleRules
+public class Utility : ModuleRules
 {
-	public kcp(ReadOnlyTargetRules Target) : base(Target)
+	public Utility(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 		
 		PublicIncludePaths.AddRange(
 			new string[] {
+				"Utility/Public"
 				// ... add public include paths required here ...
 			}
 			);
@@ -17,6 +19,7 @@ public class kcp : ModuleRules
 		
 		PrivateIncludePaths.AddRange(
 			new string[] {
+				"Utility/Private",
 				// ... add other private include paths required here ...
 			}
 			);
@@ -37,12 +40,17 @@ public class kcp : ModuleRules
 				"CoreUObject",
 				"Engine",
 				"Slate",
-				  "Sockets",
 				"SlateCore",
-				"Networking",
-				"AUT",
-				"Utility",
-				
+   				"ApplicationCore",
+				 "MediaUtils",
+				"InputCore",
+				"PakFile",
+                 "Http",
+                "Json",
+                "JsonUtilities",
+                 "Sockets",
+                "Networking",
+                "MobileUtils",
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);

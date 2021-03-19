@@ -1,10 +1,10 @@
-// Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 using UnrealBuildTool;
 
-public class kcp : ModuleRules
+public class AUT : ModuleRules
 {
-	public kcp(ReadOnlyTargetRules Target) : base(Target)
+	public AUT(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 		
@@ -37,12 +37,8 @@ public class kcp : ModuleRules
 				"CoreUObject",
 				"Engine",
 				"Slate",
-				  "Sockets",
 				"SlateCore",
-				"Networking",
-				"AUT",
 				"Utility",
-				
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);

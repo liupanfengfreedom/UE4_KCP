@@ -4,44 +4,16 @@
 #include "Kcpclient.h"
 #include "Networking/Public/Networking.h"
 #include "Engine.h"
-FOnRawsend Kcpclient::onrawsendevent;
+#include "RunnableThreadx.h"
+#include "MyBlueprintFunctionLibrary.h"
+//#define UTF16
+
+TMap<void*, FOnRawsend> Kcpclient::onrawsendevents;
 Kcpclient::Kcpclient()
 {
-	SenderSocket = FUdpSocketBuilder(FString("normal"))
-		.AsReusable()
-		//.WithBroadcast()
-		;
-}
+	kcp1 = ikcp_create(5598781, (void*)this);
 
-Kcpclient::~Kcpclient()
-{
-	if (kcp1)
-	{
-		ikcp_release(kcp1);
-		kcp1 = nullptr;
-	}
-}
-void Kcpclient::setserveraddress(FString ipaddress, int32 port)
-{
-	bool bIsValid;
-	RemoteAddr = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateInternetAddr();
-	RemoteAddr->SetIp(*ipaddress, bIsValid);
-	RemoteAddr->SetPort(port);
-
-	if (!bIsValid)
-	{
-		GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Yellow, TEXT("UDP Sender>> IP address was not valid!"));
-		return;
-	}
-	int32 SendSize = 65507;
-	SenderSocket->SetSendBufferSize(SendSize, SendSize);
-	SenderSocket->SetReceiveBufferSize(SendSize, SendSize);
-	Async(EAsyncExecution::ThreadPool, [=]() {ReceiveWork(); }, nullptr);
-	////////////////////////////////////////////////////////
-
-	kcp1 = ikcp_create(5598781, (void*)0);
-
-	int mode = 0;
+	int mode = 2;
 	// 判断测试用例的模式
 	if (mode == 0) {
 		// 默认模式
@@ -60,39 +32,95 @@ void Kcpclient::setserveraddress(FString ipaddress, int32 port)
 		// 第四个参数 resend为快速重传指标，设置为2
 		// 第五个参数 为是否禁用常规流控，这里禁止
 		ikcp_nodelay(kcp1, 2, 10, 2, 1);
-		kcp1->rx_minrto = 10;
-		kcp1->fastresend = 1;
+		ikcp_wndsize(kcp1, 512, 512);
+		ikcp_setmtu(kcp1, 512);
+
+		//kcp1->rx_minrto = 10;
+		//kcp1->fastresend = 1;
 	}
+
 	kcp1->output = [](const char* buf, int len, struct IKCPCB* kcp, void* user)->int {
-		onrawsendevent.ExecuteIfBound(buf, len, kcp, user);
+		FOnRawsend* orp = onrawsendevents.Find(user);
+		if (orp)
+		{
+			orp->ExecuteIfBound(buf, len, kcp, user);
+		}
 		return 0;
 	};
-	onrawsendevent.BindLambda([=](const char* buf, int len, struct IKCPCB* kcp, void* user) {
+	onrawsendevents.FindOrAdd(this).BindLambda([=](const char* buf, int len, struct IKCPCB* kcp, void* user) {
 		int32 BytesSent = 0;
 		bool bs = SenderSocket->SendTo((const uint8*)buf, len, BytesSent, *RemoteAddr);
-		GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Yellow, TEXT("SenderSocket->SendTo"));
-		GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Yellow,FString::FromInt(len));
+		GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Yellow, FString::FromInt(len).Append("SenderSocket->SendTo"));
+	});
+	receivethread = new RunnableThreadx([=]() {
+		FPlatformProcess::Sleep(0.015);
+		ReceiveWork();
+	});
 
-		});
+	SenderSocket = FUdpSocketBuilder(FString("normal"))
+		.AsReusable()
+		//.WithBroadcast()
+		;
+	int32 SendSize = 65507;
+	SenderSocket->SetSendBufferSize(SendSize, SendSize);
+	SenderSocket->SetReceiveBufferSize(SendSize, SendSize);
+	////////////////////////////////////////////////////////
+}
+
+Kcpclient::~Kcpclient()
+{
+	SenderSocket->Close();
+	if (receivethread)
+	{
+		delete receivethread;
+		receivethread = nullptr;
+	}
+	onrawsendevents.Remove(this);
+	//if (kcp1)
+	//{
+	//	ikcp_release(kcp1);
+	//	kcp1 = nullptr;
+	//}
+}
+void Kcpclient::setserveraddress(FString ipaddress, int32 port)
+{
+	bool bIsValid;
+	RemoteAddr = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateInternetAddr();
+	RemoteAddr->SetIp(*ipaddress, bIsValid);
+	RemoteAddr->SetPort(port);
+
+	if (!bIsValid)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Yellow, TEXT("UDP Sender>> IP address was not valid!"));
+		return;
+	}
 }
 void Kcpclient::kcpsend(const uint8* buffer, int len)
 {
 	ikcp_send(kcp1, (const char*)buffer, len);
 }
-void Kcpclient::kcpsend( FString& msg)
+void Kcpclient::kcpsend(const FString& msg)
 {
-	//uint8* pointer;
 #ifdef UTF16
+	uint8* pointer;
 	int64 outsize;
-	UMyBlueprintFunctionLibrary::FStringtoUTF16(msg, pointer, outsize);
+	UMyBlueprintFunctionLibrary::FStringtoUTF16((FString&)msg, pointer, outsize);
 	kcpsend((const uint8*)pointer, outsize);
 #else
-	TCHAR* serializedChar = msg.GetCharArray().GetData();
+	const TCHAR* serializedChar = msg.GetCharArray().GetData();
 	int32 size = FCString::Strlen(serializedChar);
 	//pointer = (uint8*)TCHAR_TO_UTF8(serializedChar);
 	kcpsend((const uint8*)TCHAR_TO_UTF8(serializedChar), size);
 
 #endif // SENDUTF16
+}
+void Kcpclient::close()
+{
+	if (receivethread)
+	{
+		delete receivethread;
+		receivethread = nullptr;
+	}
 }
 #define TIMEINTERNAL  0.015f
 #define TIMEINTERNALINMILLISECOND  TIMEINTERNAL*1000*1
@@ -100,10 +128,6 @@ void Kcpclient::kcpsend( FString& msg)
 void Kcpclient::ReceiveWork()
 {
 	//UMyBlueprintFunctionLibrary::CLogtofile(FString("ReceiveWork() ok"));
-	IUINT32 nexttimecallupdate = 0;
-	IUINT32 currenttime = 0;
-	while (true)
-	{
 		static int tickcounter = 0;
 		currenttime = FDateTime::UtcNow().ToUnixTimestamp()*1000;
 		tickcounter += TIMEINTERNALINMILLISECOND;
@@ -122,22 +146,13 @@ void Kcpclient::ReceiveWork()
 		{
   			OnkcpReceiveddata.ExecuteIfBound(kcpreceive, hr);
 		}
-		if (exitthread)
-		{
-			//UMyBlueprintFunctionLibrary::CLogtofile(FString("exitthread"));
-			SenderSocket->Close();
-			//delete this;
-			break;
-		}
 		if (SenderSocket == nullptr)
 		{
 			//UMyBlueprintFunctionLibrary::CLogtofile(FString("Socket == nullptr"));
 			//delete this;
-			break;
+			return;
 		}
 		//GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Yellow, TEXT("UTcpClient threadworker"));
-		FPlatformProcess::Sleep(TIMEINTERNAL);
-
 
 		bool b = false;
 		b = SenderSocket->HasPendingData(datasize);
@@ -166,5 +181,4 @@ void Kcpclient::ReceiveWork()
 			#endif // SENDUTF16
 			*/
 		}
-	}
 }
