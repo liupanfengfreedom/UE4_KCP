@@ -40,7 +40,6 @@ public class kcp : ModuleRules
 				  "Sockets",
 				"SlateCore",
 				"Networking",
-				"AUT",
 				"Utility",
 				
 				// ... add private dependencies that you statically link with here ...	
