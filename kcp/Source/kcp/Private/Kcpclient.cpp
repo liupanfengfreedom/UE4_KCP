@@ -5,180 +5,193 @@
 #include "Networking/Public/Networking.h"
 #include "Engine.h"
 #include "RunnableThreadx.h"
-#include "MyBlueprintFunctionLibrary.h"
+#include <chrono>
 //#define UTF16
-
-TMap<void*, FOnRawsend> Kcpclient::onrawsendevents;
 Kcpclient::Kcpclient()
 {
-	kcp1 = ikcp_create(5598781, (void*)this);
-
-	int mode = 2;
-	// 判断测试用例的模式
-	if (mode == 0) {
-		// 默认模式
-		ikcp_nodelay(kcp1, 1, 20, 2, 1);
-		ikcp_wndsize(kcp1, 64, 64);
-		ikcp_setmtu(kcp1, 512);
-	}
-	else if (mode == 1) {
-		// 普通模式，关闭流控等
-		ikcp_nodelay(kcp1, 0, 10, 0, 1);
-	}
-	else {
-		// 启动快速模式
-		// 第二个参数 nodelay-启用以后若干常规加速将启动
-		// 第三个参数 interval为内部处理时钟，默认设置为 10ms
-		// 第四个参数 resend为快速重传指标，设置为2
-		// 第五个参数 为是否禁用常规流控，这里禁止
-		ikcp_nodelay(kcp1, 2, 10, 2, 1);
-		ikcp_wndsize(kcp1, 512, 512);
-		ikcp_setmtu(kcp1, 512);
-
-		//kcp1->rx_minrto = 10;
-		//kcp1->fastresend = 1;
-	}
-
-	kcp1->output = [](const char* buf, int len, struct IKCPCB* kcp, void* user)->int {
-		FOnRawsend* orp = onrawsendevents.Find(user);
-		if (orp)
-		{
-			orp->ExecuteIfBound(buf, len, kcp, user);
-		}
-		return 0;
-	};
-	onrawsendevents.FindOrAdd(this).BindLambda([=](const char* buf, int len, struct IKCPCB* kcp, void* user) {
-		int32 BytesSent = 0;
-		bool bs = SenderSocket->SendTo((const uint8*)buf, len, BytesSent, *RemoteAddr);
-		GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Yellow, FString::FromInt(len).Append("SenderSocket->SendTo"));
-	});
+	TSharedPtr<class FInternetAddr>	RemoteAddr = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateInternetAddr();
+	Socket = ISocketSubsystem::Get()->CreateSocket(NAME_DGram, TEXT("default send"), RemoteAddr->GetProtocolType() /*FName("IPv4")*/);
+	Socket->SetReuseAddr();
+	Socket->SetNonBlocking();
 	receivethread = new RunnableThreadx([=]() {
-		FPlatformProcess::Sleep(0.015);
-		ReceiveWork();
-	});
+		FPlatformProcess::Sleep(0.010);
 
-	SenderSocket = FUdpSocketBuilder(FString("normal"))
-		.AsReusable()
-		//.WithBroadcast()
-		;
-	int32 SendSize = 65507;
-	SenderSocket->SetSendBufferSize(SendSize, SendSize);
-	SenderSocket->SetReceiveBufferSize(SendSize, SendSize);
-	////////////////////////////////////////////////////////
-}
-
-Kcpclient::~Kcpclient()
-{
-	SenderSocket->Close();
-	if (receivethread)
-	{
-		delete receivethread;
-		receivethread = nullptr;
-	}
-	onrawsendevents.Remove(this);
-	//if (kcp1)
-	//{
-	//	ikcp_release(kcp1);
-	//	kcp1 = nullptr;
-	//}
-}
-void Kcpclient::setserveraddress(FString ipaddress, int32 port)
-{
-	bool bIsValid;
-	RemoteAddr = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateInternetAddr();
-	RemoteAddr->SetIp(*ipaddress, bIsValid);
-	RemoteAddr->SetPort(port);
-
-	if (!bIsValid)
-	{
-		GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Yellow, TEXT("UDP Sender>> IP address was not valid!"));
-		return;
-	}
-}
-void Kcpclient::kcpsend(const uint8* buffer, int len)
-{
-	ikcp_send(kcp1, (const char*)buffer, len);
-}
-void Kcpclient::kcpsend(const FString& msg)
-{
-#ifdef UTF16
-	uint8* pointer;
-	int64 outsize;
-	UMyBlueprintFunctionLibrary::FStringtoUTF16((FString&)msg, pointer, outsize);
-	kcpsend((const uint8*)pointer, outsize);
-#else
-	const TCHAR* serializedChar = msg.GetCharArray().GetData();
-	int32 size = FCString::Strlen(serializedChar);
-	//pointer = (uint8*)TCHAR_TO_UTF8(serializedChar);
-	kcpsend((const uint8*)TCHAR_TO_UTF8(serializedChar), size);
-
-#endif // SENDUTF16
-}
-void Kcpclient::close()
-{
-	if (receivethread)
-	{
-		delete receivethread;
-		receivethread = nullptr;
-	}
-}
-#define TIMEINTERNAL  0.015f
-#define TIMEINTERNALINMILLISECOND  TIMEINTERNAL*1000*1
-
-void Kcpclient::ReceiveWork()
-{
-	//UMyBlueprintFunctionLibrary::CLogtofile(FString("ReceiveWork() ok"));
-		static int tickcounter = 0;
-		currenttime = FDateTime::UtcNow().ToUnixTimestamp()*1000;
-		tickcounter += TIMEINTERNALINMILLISECOND;
-		currenttime += tickcounter;
-		//GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Yellow, FString::FromInt(currenttime).Append(" :currenttime"));
-		//GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Yellow, FString::FromInt(nexttimecallupdate).Append(" :nexttimecallupdate"));
-		if (currenttime >= nexttimecallupdate)
-		{
-			ikcp_update(kcp1, currenttime);
-			nexttimecallupdate = ikcp_check(kcp1, currenttime);
-			tickcounter = 0;
-		}
-		//ikcp_update(kcp1, FDateTime::UtcNow().ToUnixTimestamp() * 100);
-		int hr = ikcp_recv(kcp1, (char*)kcpreceive, sizeof(kcpreceive));
-		if (hr > 0)
-		{
-  			OnkcpReceiveddata.ExecuteIfBound(kcpreceive, hr);
-		}
-		if (SenderSocket == nullptr)
-		{
-			//UMyBlueprintFunctionLibrary::CLogtofile(FString("Socket == nullptr"));
-			//delete this;
-			return;
-		}
-		//GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Yellow, TEXT("UTcpClient threadworker"));
-
+		uint32 datasize;
 		bool b = false;
-		b = SenderSocket->HasPendingData(datasize);
+		b = Socket->HasPendingData(datasize);
+
 
 		int32 bytes;
 		if (b)
 		{
-			//UMyBlueprintFunctionLibrary::CLogtofile(FString(" Socket->HasPendingData(datasize) is ture"));
-			// u need to ensure single package not bigger than 65536 byte
-			// and the time gap between two packages is needed and at least 30ms 
-			datareceive.Empty();
-			datareceive.AddUninitialized(datasize);
+			Socket->Recv(&datareceive[0],receivebuffersize, bytes, ESocketReceiveFlags::None);
+            uint32 conn = *(uint32*)datareceive;
+            switch (conn)
+            {
+            case KcpProtocalType::SYN:
+                if (bytes != 8)
+                {
+                    break;
+                }
+              //  HandleAccept((const SOCKADDR*)&SenderAddr, (const char*)RecvBuf, iResult);
+                break;
+            case KcpProtocalType::ACK:
+                if (bytes != 12)
+                {
+                    break;
+                }
+                HandleConnect((const char*)datareceive, bytes);
+                break;
+            case KcpProtocalType::PING:
+                if (bytes != 8)
+                {
+                    break;
+                }
+               // HandlePing((const SOCKADDR*)&SenderAddr, (const char*)RecvBuf, iResult);
+                break;
+            default:
+                HandleRecv(conn,(const char*)datareceive, bytes);
+                break;
+            }
 
-			SenderSocket->Recv(&datareceive[0], datasize, bytes, ESocketReceiveFlags::None);
-			//OnUdpClientReceiveddata.ExecuteIfBound(datareceive);
-			ikcp_input(kcp1, (const char*)&datareceive[0], datasize);
-
-			/*
-			#ifdef UTF16
-						FString datatostring = FString(datareceive.Num() >> 1, (TCHAR*)&datareceive[0]);
-						UMyBlueprintFunctionLibrary::CLogtofile(datatostring);
-						OnUdpClientReceiveddata.ExecuteIfBound(datareceive, datatostring);
-			#else
-						FString datatostring = FString(UTF8_TO_TCHAR(&datareceive[0])).Left(datareceive.Num());
-						OnUdpClientReceiveddata.ExecuteIfBound(datareceive, datatostring);
-			#endif // SENDUTF16
-			*/
 		}
+        //////////////////////////////////////////////////////////////////
+        for (auto It = idChannels.CreateConstIterator(); It; ++It)
+        {
+            It.Value()->Update(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count());
+        }
+	});
+}
+void Kcpclient::HandleConnect(const char* data, uint16 size)
+{
+    uint32 id = *(uint32*)(data + 4);
+    uint32 requestConn = *(uint32*)(data + 8);
+    if (requestChannels.Contains(requestConn))
+    {
+        requestChannels[requestConn]->HandleConnect(id);
+        idChannels.Add(id, requestChannels[requestConn]);
+        requestChannels.Remove(requestConn);
+    }
+}
+void Kcpclient::HandleRecv(const uint32& id, const char* data, uint16 size)
+{   
+    CChannel** kc = idChannels.Find(id);
+    if (kc)
+    {
+        (*kc)->HandleRecv(data, size);
+    }
+}
+Kcpclient::~Kcpclient()
+{
+    if (receivethread)
+    {
+        receivethread->StopThread();
+    }
+    for (auto It = idChannels.CreateConstIterator(); It; ++It)
+    {
+        It.Value()->isConnected = false;
+        delete It.Value();
+    }
+    idChannels.Empty();
+}
+CChannel* Kcpclient::CreateChannel(const FString& ipaddress, int32 port)
+{
+    bool bIsValid;
+    TSharedPtr<class FInternetAddr>	RemoteAddr = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateInternetAddr();
+    RemoteAddr->SetIp(*ipaddress, bIsValid);
+    RemoteAddr->SetPort(port);
+    if (!bIsValid)
+    {
+        //GEngine->AddOnScreenDebugMessage(-1, 51.0f, FColor::Yellow, TEXT("UDP Sender>> IP address was not valid!"));
+        return nullptr;
+    }
+    uint32 id = 0;
+    bool bc = false;
+    do {
+        id = FMath::RandRange(500, 0xffffffff);
+        bc = requestChannels.Contains(id);
+    } while (bc);  
+    CChannel* channel = new CChannel(id, Socket,RemoteAddr);
+    requestChannels.Add(channel->requestConn,channel);
+    return channel;
+}
+//////////////////////////////////////////////////////////////////////////
+CChannel::CChannel(uint32 requestConn,FSocket* Socket, const TSharedPtr<class FInternetAddr>& RemoteEp) {
+    this->requestConn = requestConn;
+    this->Socket = Socket;
+    this->RemoteEp = RemoteEp;
+    Async(EAsyncExecution::ThreadPool, [=]() {
+        while (true)
+        {
+            FPlatformProcess::Sleep(0.2f);
+            if (isConnected)
+            {
+                break;
+            }
+            uint32 syn = Kcpclient::KcpProtocalType::SYN;
+            FMemory::Memcpy(cacheBytes, (uint8*)&syn, 4);
+            FMemory::Memcpy(cacheBytes + 4, (uint8*)&requestConn, 4);
+            int32 BytesSent = 0;
+            Socket->SendTo(cacheBytes, 8, BytesSent, *RemoteEp);
+        }
+        }, nullptr);
+}
+CChannel::~CChannel() {
+    if (pingthread)
+    {
+        pingthread->StopThread();
+    }
+}
+void CChannel::HandleConnect(uint32& id)
+{
+    if (isConnected)
+    {
+        return;
+    }
+    this->Id = id;
+    kcp1 = ikcp_create(Id, (void*)this);
+    ikcp_nodelay(kcp1, 1, 10, 2, 1);
+    ikcp_wndsize(kcp1, 512, 512);
+    ikcp_setmtu(kcp1, 1400);
+    kcp1->output = [](const char* buf, int len, struct IKCPCB* kcp, void* user)->int {
+        int32 BytesSent = 0;
+        ((CChannel*)user)->Socket->SendTo((const uint8*)buf, len, BytesSent, *((CChannel*)user)->RemoteEp);
+        return 0;
+    };
+    isConnected = true;
+    pingthread = new RunnableThreadx([=]() {
+        FPlatformProcess::Sleep(2);
+        uint32 ping = Kcpclient::KcpProtocalType::PING;
+        FMemory::Memcpy(cacheBytes, (uint8*)&ping, 4);
+        FMemory::Memcpy(cacheBytes + 4, (uint8*)&Id, 4);
+        int32 BytesSent = 0;
+        Socket->SendTo(cacheBytes, 8, BytesSent, *RemoteEp);
+    });
+}
+void CChannel::HandleRecv(const char* data, uint16 size)
+{
+    ikcp_input(kcp1, (const char*)data, size);
+}
+void CChannel::Update(const IUINT32& currenttime)
+{
+    if (currenttime >= nexttimecallupdate)
+    {
+        ikcp_update(kcp1, currenttime);
+        nexttimecallupdate = ikcp_check(kcp1, currenttime);
+    }
+    int hr = ikcp_recv(kcp1, (char*)kcpreceive, sizeof(kcpreceive));
+    if (hr > 0)
+    {
+        if (onUserLevelReceivedCompleted)
+        {
+            onUserLevelReceivedCompleted((const uint8*)kcpreceive, hr);
+        }
+    }
+}
+void CChannel::Send(const char* data, const UINT16& size)
+{
+    if (isConnected)
+    {
+        ikcp_send(kcp1, data, size);
+    }
 }

@@ -1,6 +1,7 @@
 #include "UdpServer.h"
 #include "RunnableThreadx.h"
 #include "MyBlueprintFunctionLibrary.h"
+#include <chrono>
 
 #pragma comment(lib, "Ws2_32.lib")
 
@@ -67,19 +68,19 @@ UdpServer::UdpServer(UINT16 port, int& iResultp)
             HandlePing((const SOCKADDR*)&SenderAddr, (const char*)RecvBuf, iResult);
             break;
         default:
-            HandleRecv(conn,(const SOCKADDR*)&SenderAddr, (const char*)RecvBuf, iResult);
+            HandleRecv(conn, (const SOCKADDR*)&SenderAddr, (const char*)RecvBuf, iResult);
             break;
         }
         FPlatformProcess::Sleep(0.001);
      });
     iResultp = 0;
     updatethread = new RunnableThreadx([=]() {      
-        FPlatformProcess::Sleep(0.010);
+        FPlatformProcess::Sleep(0.001);
         {
             FScopeLock Lock(&Mutex);
             for (auto It = idChannels.CreateConstIterator(); It; ++It)
             {
-                It.Value()->Update(FDateTime::UtcNow().ToUnixTimestamp() * 1000);
+                It.Value()->Update(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count());
             }
         }
      });
@@ -143,27 +144,32 @@ bool UdpServer::close()
 }
 void UdpServer::HandleAccept(const SOCKADDR* remoteaddr, const char* data, UINT16& size)
 {
-    FString remoteepstr = FMD5::HashBytes((const uint8*)remoteaddr->sa_data, 14);
-    if (EPChannels.Contains(remoteepstr))
+    uint32 requestConn = *(uint32*)(data + 4);
+
+    if (requestChannels.Contains(requestConn))
     {
+        if (requestChannels[requestConn]->isConnected)
+        {
+            requestChannels.Remove(requestConn);
+            return;
+        }
     }
     else
     {
-        uint32 requestConn = *(uint32*)(data+4);
         uint32 newid;
         do {
             newid = IdGenerater++;
         }
         while (idChannels.Contains(newid));
         KChannel* channel = new KChannel(newid, requestConn, *remoteaddr, this);
+        requestChannels.Add(channel->requestConn,channel);
         idChannels.Add(channel->Id, channel);
-        EPChannels.Add(remoteepstr, channel);
         if (onacceptchannel)
         {
             onacceptchannel(channel);
         }
     }
-    EPChannels[remoteepstr]->HandleAccept();
+    requestChannels[requestConn]->HandleAccept();
 }
 void UdpServer::HandleConnect(const SOCKADDR* remoteaddr, const char* data, UINT16& size)
 {
@@ -208,7 +214,7 @@ KChannel::~KChannel()
 {}
 void KChannel::HandleAccept()
 {
-    uint32 ack = KcpProtocalType::ACK;
+    uint32 ack = UdpServer::KcpProtocalType::ACK;
     FMemory::Memcpy(cacheBytes, (uint8*)&ack, 4);
     FMemory::Memcpy(cacheBytes+4, (uint8*)&Id, 4);
     FMemory::Memcpy(cacheBytes+8, (uint8*)&requestConn, 4);
@@ -220,12 +226,14 @@ void KChannel::HandleRecv(const SOCKADDR* premotesocket, const char* data, const
     FString remoteepstr1 = FMD5::HashBytes((const uint8*)remotesocket.sa_data, 14);
     if (remoteepstr != remoteepstr1)
     {
-        server->EPChannels.Remove(remoteepstr1);
         remotesocket = *premotesocket;
         UMyBlueprintFunctionLibrary::CLogtofile(remoteepstr + " : remoteepstr");
         UMyBlueprintFunctionLibrary::CLogtofile(remoteepstr1 + " : remoteepstr1");
     }
-    ikcp_input(kcp1, (const char*)data, size);
+    {
+        FScopeLock Lock(&Mutex);
+        ikcp_input(kcp1, (const char*)data, size);
+    }
 }
 void KChannel::HandlePing()
 {
@@ -241,19 +249,23 @@ void KChannel::CheckPing(const IUINT32& currenttime)
 }
 void KChannel::Update(const IUINT32& currenttime)
 {
-    if (currenttime >= nexttimecallupdate)
     {
-        ikcp_update(kcp1, currenttime);
-        nexttimecallupdate = ikcp_check(kcp1, currenttime);
-    }
-    int hr = ikcp_recv(kcp1, (char*)kcpreceive, sizeof(kcpreceive));
-    if (hr > 0)
-    {
-        if (onUserLevelReceivedCompleted)
+        FScopeLock Lock(&Mutex);
+        if (currenttime >= nexttimecallupdate)
         {
-            onUserLevelReceivedCompleted((const uint8*)kcpreceive, hr);
+            ikcp_update(kcp1, currenttime);
+            nexttimecallupdate = ikcp_check(kcp1, currenttime);
+        }
+        int hr = ikcp_recv(kcp1, (char*)kcpreceive, sizeof(kcpreceive));
+        if (hr > 0)
+        {
+            if (onUserLevelReceivedCompleted)
+            {
+                onUserLevelReceivedCompleted((const uint8*)kcpreceive, hr);
+            }
         }
     }
+
 }
 void KChannel::Send(const char* data, const UINT16& size)
 {
@@ -262,12 +274,26 @@ void KChannel::Send(const char* data, const UINT16& size)
 void KChannel::disconnect()
 {
     isConnected = false;
-    UMyBlueprintFunctionLibrary::CLogtofile(FString::FromInt(server->EPChannels.Num()) + " : server->EPChannels.Num()");
+    if (ondisconnect)
+    {
+        ondisconnect();
+    }
+    UMyBlueprintFunctionLibrary::CLogtofile(FString::FromInt(server->requestChannels.Num()) + " : server->requestChannels.Num()");
     UMyBlueprintFunctionLibrary::CLogtofile(FString::FromInt(server->idChannels.Num()) + " : server->idChannels.Num()");
     FString remoteepstr1 = FMD5::HashBytes((const uint8*)remotesocket.sa_data, 14);
     {
         FScopeLock Lock(&server->Mutex);
-        KChannel** kc = server->idChannels.Find(Id);
+        KChannel**kc= server->requestChannels.Find(requestConn);
+        if (kc)
+        {
+            if (*kc == this)
+            {
+                server->requestChannels.Remove(requestConn);
+                UMyBlueprintFunctionLibrary::CLogtofile(FString::FromInt(server->requestChannels.Num()) + " : server->requestChannels.Num()");
+            }
+        }
+        server->idChannels.Remove(Id);
+        kc = server->idChannels.Find(Id);
         if (kc)
         {
             if (*kc)
@@ -276,13 +302,6 @@ void KChannel::disconnect()
                 UMyBlueprintFunctionLibrary::CLogtofile("delete ");
             }
         }
-        server->EPChannels.Remove(remoteepstr1);
-        server->idChannels.Remove(Id);
     }
-    if (ondisconnect)
-    {
-        ondisconnect();
-    }
-    UMyBlueprintFunctionLibrary::CLogtofile(FString::FromInt(server->EPChannels.Num()) + " : server->EPChannels.Num()");
     UMyBlueprintFunctionLibrary::CLogtofile(FString::FromInt(server->idChannels.Num()) + " : server->idChannels.Num()");
 }

@@ -9,12 +9,6 @@
 #include <Ws2tcpip.h>
 #include "ikcp.h"
 
-enum KcpProtocalType {
-    SYN = 1,
-    ACK,
-    FIN,
-    PING
-};
 class UdpServer
 {
     UINT16 iResult = 0;
@@ -36,14 +30,20 @@ class UdpServer
     class RunnableThreadx* pingcheckthread = nullptr;
 
 public:
+    enum KcpProtocalType {
+        SYN = 1,
+        ACK,
+        FIN,
+        PING
+    };
 	UdpServer(UINT16 port, int& iResultp);
 	~UdpServer();
     bool send(SOCKADDR* remoteaddr, char*data,const UINT16& size);
     bool close();
 //////////////////////////////////////////////////
     uint32 IdGenerater=1000;
-    TMap<long, class KChannel*>idChannels;
-    TMap<FString, class KChannel*>EPChannels;
+    TMap<uint32, class KChannel*>idChannels;
+    TMap<uint32, class KChannel*>requestChannels;
     TFunction<void(KChannel* channel)> onacceptchannel;
     FCriticalSection Mutex;
 private:
@@ -61,9 +61,9 @@ class KChannel
     uint8 kcpreceive[1024 * 4] = { 0 };
 
     IUINT32 lastpingtime = 0;
-    bool isConnected=false;
-
+    FCriticalSection Mutex;
 public:
+    bool isConnected = false;
     uint32 Id;
     uint32 requestConn;
     UdpServer* server;
