@@ -21,14 +21,14 @@ bool UHttpServicev::ResponseIsValid(FHttpResponsePtr Response, bool bWasSuccessf
 		return false;
 	}
 }
-void UHttpServicev::SetRequestHeaders(TSharedRef<IHttpRequest>& Request) {
+void UHttpServicev::SetRequestHeaders(TSharedRef<IHttpRequest, ESPMode::ThreadSafe>& Request) {
 	Request->SetHeader(TEXT("User-Agent"), TEXT("X-UnrealEngine-Agent"));
 	Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
 	Request->SetHeader(TEXT("Accepts"), TEXT("application/json"));
 }
 void UHttpServicev::HttpGet(FString uri)
 {
-	TSharedRef<IHttpRequest> Request = Http->CreateRequest();
+	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = Http->CreateRequest();
 	Request->SetURL(uri);
 	SetRequestHeaders(Request);
 	Request->OnProcessRequestComplete().BindUObject(this, &UHttpServicev::HttpResponseComplete);
@@ -37,7 +37,7 @@ void UHttpServicev::HttpGet(FString uri)
 }
 void UHttpServicev::HttpPost(FString uri, FString username, FString password, FString payload, FString content)
 {
-	TSharedRef<IHttpRequest> Request = Http->CreateRequest();
+	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = Http->CreateRequest();
 	Request->SetURL(uri);
 	SetRequestHeaders(Request);
 	Request->SetHeader(TEXT("UserName"), username);
@@ -51,7 +51,7 @@ void UHttpServicev::HttpPost(FString uri, FString username, FString password, FS
 }
 void UHttpServicev::HttpPost(FString uri, FString username, FString password, FString payload, TArray<uint8>& content)
 {
-	TSharedRef<IHttpRequest> Request = Http->CreateRequest();
+	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = Http->CreateRequest();
 	Request->SetURL(uri);
 	SetRequestHeaders(Request);
 	Request->SetHeader(TEXT("UserName"), username);

@@ -40,7 +40,7 @@ bool HttpServiceRaw::ResponseIsValid(FHttpResponsePtr Response, bool bWasSuccess
 		return false;
 	}
 }
-void HttpServiceRaw::SetRequestHeaders(TSharedRef<IHttpRequest>& Request) {
+void HttpServiceRaw::SetRequestHeaders(TSharedRef<IHttpRequest, ESPMode::ThreadSafe>& Request) {
 	//Request->SetHeader(TEXT("Accept"), TEXT("text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3"));
 	//Request->SetHeader(TEXT("Accept-Encoding"), TEXT("gzip, deflate, br"));
 	//Request->SetHeader(TEXT("Accept-Language"), TEXT("zh-CN,zh;q=0.9"));
@@ -54,7 +54,7 @@ void HttpServiceRaw::SetRequestHeaders(TSharedRef<IHttpRequest>& Request) {
 void HttpServiceRaw::HttpGet(FString uri)
 {
 	busy = true;
-	TSharedRef<IHttpRequest> Request = Http->CreateRequest();
+	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = Http->CreateRequest();
 	Request->SetURL(uri);
 	SetRequestHeaders(Request);
 	Request->SetVerb("GET");
@@ -66,7 +66,7 @@ void HttpServiceRaw::HttpGet(FString uri)
 void HttpServiceRaw::HttpGet(FString uri, FString username, FString password)
 {
 	busy = true;
-	TSharedRef<IHttpRequest> Request = Http->CreateRequest();
+	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = Http->CreateRequest();
 	Request->SetURL(uri);
 	SetRequestHeaders(Request);
 	Request->SetHeader(TEXT("UserName"), username);
@@ -80,7 +80,7 @@ void HttpServiceRaw::HttpGet(FString uri, FString username, FString password)
 void HttpServiceRaw::HttpPost(FString uri, FString username, FString password, FString payload, FString content)
 {
 	busy = true;
-	TSharedRef<IHttpRequest> Request = Http->CreateRequest();
+	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = Http->CreateRequest();
 	Request->SetURL(uri);
 	SetRequestHeaders(Request);
 	Request->SetHeader(TEXT("UserName"), username);
@@ -94,7 +94,7 @@ void HttpServiceRaw::HttpPost(FString uri, FString username, FString password, F
 }
 void HttpServiceRaw::HttpPost(FString uri, FString username, FString password, FString payload, TArray<uint8>& content)
 {
-	TSharedRef<IHttpRequest> Request = Http->CreateRequest();
+	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = Http->CreateRequest();
 	Request->SetURL(uri);
 	SetRequestHeaders(Request);
 	Request->SetHeader(TEXT("UserName"), username);

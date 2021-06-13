@@ -51,8 +51,6 @@ public:
 		static FLinearColor getcolorinforundercursor();
 	UFUNCTION(BlueprintCallable, Category = "Mybp")
 		static TArray<FString> findallfileunderpath(FString path, FString FileExtension);
-	static void* CallBlueprintProperty(const UObject* otherobj, const FName propertyName);
-	static void CallBlueprintfunction(const UObject* otherobj, const FName functionName, void* para);
 	template <class T>
 	static void sortarrray(TArray<T*>& arr, TFunction<bool(T* A, T* B)> compare)
 	{
@@ -99,7 +97,4 @@ public:
 	static TArray<Fonge> OnGameexit;
 	static TArray<Fonge> OnGameInitevent;
 	static TArray<Fang> OnGameexiteventwithparameter;
-	static void AddfunctiontoOnGameIniteventArray(TBaseStaticDelegateInstance<TTypeWrapper<void>()>::FFuncPtr InFuncPtr);
-	static void AddfunctiontoOnGameexitArray(TBaseStaticDelegateInstance<TTypeWrapper<void>()>::FFuncPtr InFuncPtr);
-	static void AddfunctiontoOnGameIniteventwithparameterArray(TBaseStaticDelegateInstance<TTypeWrapper<void>(const TArray<uint8>&, const FString &)>::FFuncPtr InFuncPtr);
 };

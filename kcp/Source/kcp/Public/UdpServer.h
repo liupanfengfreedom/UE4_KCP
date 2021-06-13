@@ -1,5 +1,5 @@
 #pragma once
-
+#if PLATFORM_WINDOWS
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif // !WIN32_LEAN_AND_MEAN
@@ -11,7 +11,7 @@
 
 class UdpServer
 {
-    UINT16 iResult = 0;
+    uint16 iResult = 0;
 
     WSADATA wsaData;
 
@@ -36,9 +36,9 @@ public:
         FIN,
         PING
     };
-	UdpServer(UINT16 port, int& iResultp);
+	UdpServer(uint16 port, int& iResultp);
 	~UdpServer();
-    bool send(SOCKADDR* remoteaddr, char*data,const UINT16& size);
+    bool send(SOCKADDR* remoteaddr, char*data,const uint16& size);
     bool close();
 //////////////////////////////////////////////////
     uint32 IdGenerater=1000;
@@ -47,10 +47,10 @@ public:
     TFunction<void(KChannel* channel)> onacceptchannel;
     FCriticalSection Mutex;
 private:
-    void HandleAccept(const SOCKADDR* remoteaddr, const char*data, UINT16& size);
-    void HandleConnect(const SOCKADDR* remoteaddr, const char* data, UINT16& size);
-    void HandlePing(const SOCKADDR* remoteaddr, const char* data, UINT16& size);
-    void HandleRecv(const uint32& conn, const SOCKADDR* remoteaddr, const char* data, UINT16& size);
+    void HandleAccept(const SOCKADDR* remoteaddr, const char*data, uint16& size);
+    void HandleConnect(const SOCKADDR* remoteaddr, const char* data, uint16& size);
+    void HandlePing(const SOCKADDR* remoteaddr, const char* data, uint16& size);
+    void HandleRecv(const uint32& conn, const SOCKADDR* remoteaddr, const char* data, uint16& size);
 };
 ///////////////////////////////////////////////////////////////////////////
 class KChannel
@@ -72,14 +72,15 @@ public:
     KChannel(uint32 newid,uint32 requestConn, SOCKADDR remotesocket, UdpServer*server);
     ~KChannel();
     void HandleAccept();
-    void HandleRecv(const SOCKADDR* remotesocket, const char* data, const UINT16& size);
+    void HandleRecv(const SOCKADDR* remotesocket, const char* data, const uint16& size);
     void HandlePing();
     void CheckPing(const IUINT32& currenttime);
     void Update(const IUINT32& currenttime);
-    void Send(const char* data, const UINT16& size);
-    TFunction<void(const uint8* data, const UINT16& size)> onUserLevelReceivedCompleted;
+    void Send(const char* data, const uint16& size);
+    TFunction<void(const uint8* data, const uint16& size)> onUserLevelReceivedCompleted;
     TFunction<void()> ondisconnect;
     void disconnect();
 };
+#endif
 
 

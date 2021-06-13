@@ -69,9 +69,9 @@ typedef char IINT8;
 typedef unsigned char IUINT8;
 #endif
 
-#ifndef __IUINT16_DEFINED
-#define __IUINT16_DEFINED
-typedef unsigned short IUINT16;
+#ifndef __Iuint16_DEFINED
+#define __Iuint16_DEFINED
+typedef unsigned short Iuint16;
 #endif
 
 #ifndef __IINT16_DEFINED

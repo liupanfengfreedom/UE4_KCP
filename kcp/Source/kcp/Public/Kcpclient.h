@@ -50,6 +50,6 @@ public:
     void HandleConnect(uint32& id);
     void HandleRecv(const char* data, uint16 size);
     void Update(const IUINT32& currenttime);
-    TFunction<void(const uint8* data, const UINT16& size)> onUserLevelReceivedCompleted;
-    void Send(const char* data, const UINT16& size);
+    TFunction<void(const uint8* data, const uint16& size)> onUserLevelReceivedCompleted;
+    void Send(const char* data, const uint16& size);
 };

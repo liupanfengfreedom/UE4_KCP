@@ -283,29 +283,6 @@ TArray<FString> UMyBlueprintFunctionLibrary::findallfileunderpath(FString path, 
 	FPlatformFileManager::Get().GetPlatformFile().FindFilesRecursively(files, *path, *FileExtension);
 	return files;
 }
-void* UMyBlueprintFunctionLibrary::CallBlueprintProperty(const UObject* otherobj, const FName propertyName) {
-	void* outValue = nullptr;
-	FProperty* inProperty = otherobj->GetClass()->FindPropertyByName(propertyName);
-	if (inProperty)
-	{
-		outValue = (void*)inProperty->ContainerPtrToValuePtr<void>(otherobj);
-	}
-	return outValue;
-}
-/// <summary>
-/*
- struct par{
-  FString p1;
-  int p2;
-  bool p3;
-  float p4;
- }
-
-*/
-/// <param name="para"></param>
-void UMyBlueprintFunctionLibrary::CallBlueprintfunction(const UObject* otherobj, const FName functionName, void* para) {
-	((UObject*)otherobj)->ProcessEvent(otherobj->FindFunctionChecked(functionName), para);
-}
 void UMyBlueprintFunctionLibrary::Ongameinitfunc()
 {
 	//clear log file content
@@ -329,23 +306,5 @@ void UMyBlueprintFunctionLibrary::OnGameEndefunc()
 	}
 }
 
-void UMyBlueprintFunctionLibrary::AddfunctiontoOnGameIniteventArray(TBaseStaticDelegateInstance<TTypeWrapper<void>()>::FFuncPtr InFuncPtr)
-{
-	Fonge temp;
-	temp.BindStatic(InFuncPtr);
-	OnGameInitevent.Add(temp);
-}
 
-void UMyBlueprintFunctionLibrary::AddfunctiontoOnGameexitArray(TBaseStaticDelegateInstance<TTypeWrapper<void>()>::FFuncPtr InFuncPtr)
-{
-	Fonge temp;
-	temp.BindStatic(InFuncPtr);
-	OnGameexit.Add(temp);
-}
-void UMyBlueprintFunctionLibrary::AddfunctiontoOnGameIniteventwithparameterArray(TBaseStaticDelegateInstance<TTypeWrapper<void>(const TArray<uint8>&, const FString &)>::FFuncPtr InFuncPtr)
-{
-	Fang temp;
-	temp.BindStatic(InFuncPtr);
-	OnGameexiteventwithparameter.Add(temp);
-}
 

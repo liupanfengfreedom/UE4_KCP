@@ -21,7 +21,7 @@ public:
 	HttpServiceRaw();
 	~HttpServiceRaw();
 	FHttpModule* Http;
-	void SetRequestHeaders(TSharedRef<IHttpRequest>& Request);
+	void SetRequestHeaders(TSharedRef<IHttpRequest, ESPMode::ThreadSafe>& Request);
 	bool ResponseIsValid(FHttpResponsePtr Response, bool bWasSuccessful);
 	TSharedPtr<class LoadFileFromLocalOrCloud, ESPMode::ThreadSafe> mloadfilefromlocalorcloud;
 	//static UHttpServicev1* _instance;

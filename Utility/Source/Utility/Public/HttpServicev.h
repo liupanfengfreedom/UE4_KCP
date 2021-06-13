@@ -21,7 +21,7 @@ class UTILITY_API UHttpServicev : public UObject
 {
 	GENERATED_BODY()
 	FHttpModule* Http;
-	void SetRequestHeaders(TSharedRef<IHttpRequest>& Request);
+	void SetRequestHeaders(TSharedRef<IHttpRequest, ESPMode::ThreadSafe>& Request);
 	bool ResponseIsValid(FHttpResponsePtr Response, bool bWasSuccessful);
 	//static UHttpServicev1* _instance;
 public:

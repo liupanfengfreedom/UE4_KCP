@@ -1,3 +1,5 @@
+#if PLATFORM_WINDOWS
+
 #include "UdpServer.h"
 #include "RunnableThreadx.h"
 #include "MyBlueprintFunctionLibrary.h"
@@ -5,7 +7,7 @@
 
 #pragma comment(lib, "Ws2_32.lib")
 
-UdpServer::UdpServer(UINT16 port, int& iResultp)
+UdpServer::UdpServer(uint16 port, int& iResultp)
 {
     //-----------------------------------------------
 // Initialize Winsock
@@ -115,7 +117,7 @@ UdpServer::~UdpServer()
     close();
 }
 
-bool UdpServer::send(SOCKADDR* remoteaddr,char*data, const UINT16& size)
+bool UdpServer::send(SOCKADDR* remoteaddr,char*data, const uint16& size)
 {
     iResult = sendto(RecvSocket,
         data, size, 0, remoteaddr, SenderAddrSize);
@@ -142,7 +144,7 @@ bool UdpServer::close()
     }
     return true;
 }
-void UdpServer::HandleAccept(const SOCKADDR* remoteaddr, const char* data, UINT16& size)
+void UdpServer::HandleAccept(const SOCKADDR* remoteaddr, const char* data, uint16& size)
 {
     uint32 requestConn = *(uint32*)(data + 4);
 
@@ -171,11 +173,11 @@ void UdpServer::HandleAccept(const SOCKADDR* remoteaddr, const char* data, UINT1
     }
     requestChannels[requestConn]->HandleAccept();
 }
-void UdpServer::HandleConnect(const SOCKADDR* remoteaddr, const char* data, UINT16& size)
+void UdpServer::HandleConnect(const SOCKADDR* remoteaddr, const char* data, uint16& size)
 {
 
 }
-void UdpServer::HandlePing(const SOCKADDR* remoteaddr, const char* data, UINT16& size)
+void UdpServer::HandlePing(const SOCKADDR* remoteaddr, const char* data, uint16& size)
 {
     KChannel** kc = idChannels.Find(*(uint32*)(data + 4));
     if (kc)
@@ -183,7 +185,7 @@ void UdpServer::HandlePing(const SOCKADDR* remoteaddr, const char* data, UINT16&
         (*kc)->HandlePing();
     }
 }
-void UdpServer::HandleRecv(const uint32& conn, const SOCKADDR* remoteaddr, const char* data, UINT16& size)
+void UdpServer::HandleRecv(const uint32& conn, const SOCKADDR* remoteaddr, const char* data, uint16& size)
 {
     KChannel** kc = idChannels.Find(conn);
     if (kc)
@@ -220,7 +222,7 @@ void KChannel::HandleAccept()
     FMemory::Memcpy(cacheBytes+8, (uint8*)&requestConn, 4);
     server->send(&remotesocket, (char*)cacheBytes, 12);
 }
-void KChannel::HandleRecv(const SOCKADDR* premotesocket, const char* data, const UINT16& size)
+void KChannel::HandleRecv(const SOCKADDR* premotesocket, const char* data, const uint16& size)
 {
     FString remoteepstr = FMD5::HashBytes((const uint8*)premotesocket->sa_data, 14);
     FString remoteepstr1 = FMD5::HashBytes((const uint8*)remotesocket.sa_data, 14);
@@ -267,7 +269,7 @@ void KChannel::Update(const IUINT32& currenttime)
     }
 
 }
-void KChannel::Send(const char* data, const UINT16& size)
+void KChannel::Send(const char* data, const uint16& size)
 {
     ikcp_send(kcp1, data, size);
 }
@@ -305,3 +307,4 @@ void KChannel::disconnect()
     }
     UMyBlueprintFunctionLibrary::CLogtofile(FString::FromInt(server->idChannels.Num()) + " : server->idChannels.Num()");
 }
+#endif

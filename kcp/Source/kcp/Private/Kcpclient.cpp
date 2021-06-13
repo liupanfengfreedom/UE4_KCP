@@ -10,7 +10,10 @@
 Kcpclient::Kcpclient()
 {
 	TSharedPtr<class FInternetAddr>	RemoteAddr = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateInternetAddr();
-	Socket = ISocketSubsystem::Get()->CreateSocket(NAME_DGram, TEXT("default send"), RemoteAddr->GetProtocolType() /*FName("IPv4")*/);
+    bool bIsValid;
+    RemoteAddr->SetIp(TEXT("192.168.1.1"), bIsValid);
+    RemoteAddr->SetPort(7777);
+    Socket = ISocketSubsystem::Get()->CreateSocket(NAME_DGram, TEXT("default send"), RemoteAddr->GetProtocolType() /*FName("IPv4")*/);
 	Socket->SetReuseAddr();
 	Socket->SetNonBlocking();
 	receivethread = new RunnableThreadx([=]() {
@@ -188,7 +191,7 @@ void CChannel::Update(const IUINT32& currenttime)
         }
     }
 }
-void CChannel::Send(const char* data, const UINT16& size)
+void CChannel::Send(const char* data, const uint16& size)
 {
     if (isConnected)
     {
